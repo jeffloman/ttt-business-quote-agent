@@ -1,6 +1,8 @@
 # app.py
-import os
 import json
+import os
+from typing import Callable
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -11,7 +13,7 @@ if not os.getenv("OPENAI_API_KEY"):
 from agent import clear_log_file, read_log_entries, run_agent
 
 
-def _print_log_tail(limit: int = 5):
+def _print_log_tail(limit: int = 5) -> None:
     entries = read_log_entries(limit=limit)
     if not entries:
         print("\n--- LOGS ---")
@@ -25,37 +27,40 @@ def _print_log_tail(limit: int = 5):
     print()
 
 
-def _print_help():
+def _print_help() -> None:
     print("Commands:")
-    print("  /logs        Show the 5 most recent log entries")
-    print("  /clearlogs   Delete the current log file")
-    print("  /help        Show commands")
-    print("  exit         Quit\n")
+    print("  /logs, /log   Show the 5 most recent log entries")
+    print("  /clearlogs    Delete the current log file")
+    print("  /help         Show commands")
+    print("  exit          Quit\n")
 
 
-def main():
+def main() -> None:
     print("Local Business Quote Agent")
     print("Logging is ON for CLI runs.")
     print("Type 'exit' to quit. Type '/help' for commands.\n")
 
+    commands: dict[str, Callable[[], None]] = {
+        "/help": _print_help,
+        "/logs": lambda: _print_log_tail(limit=5),
+        "/log": lambda: _print_log_tail(limit=5),
+        "/clearlogs": lambda: (clear_log_file(), print("Log file cleared.\n")),
+    }
+
     while True:
         user_input = input("You: ").strip()
+        lowered = user_input.lower()
 
-        if user_input.lower() in ["exit", "quit"]:
+        if lowered in {"exit", "quit"}:
             print("Goodbye.")
             break
 
-        if user_input.lower() == "/help":
-            _print_help()
+        if lowered in commands:
+            commands[lowered]()
             continue
 
-        if user_input.lower() == "/logs":
-            _print_log_tail(limit=5)
-            continue
-
-        if user_input.lower() == "/clearlogs":
-            clear_log_file()
-            print("Log file cleared.\n")
+        if lowered.startswith("/"):
+            print("Unknown command. Type '/help' to see available commands.\n")
             continue
 
         result = run_agent(user_input, enable_logging=True)

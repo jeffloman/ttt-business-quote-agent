@@ -1,4 +1,3 @@
-# agent.py
 # =========================
 # FILE: agent.py
 # =========================
@@ -7,12 +6,11 @@ from __future__ import annotations
 import json
 import os
 import re
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol
-import urllib.request
-import urllib.error
-
 
 from tools import (
     format_access_constraints,
@@ -201,9 +199,12 @@ def _build_log_entry(result: dict) -> dict:
         "tool_ok": tool_result.get("ok") if isinstance(tool_result, dict) else None,
         "final_answer": result.get("final_answer"),
         "routing_reason": result.get("routing_reason"),
-        # Day 10: include model routing metadata for inspection via CLI /logs
+        # Day 10: model-assisted routing for unknown intent
         "llm_used": bool(result.get("llm_used", False)),
         "llm_decision": result.get("llm_decision"),
+        # Day 11: optional grounded rewrite (tool-output phrasing only)
+        "llm_answer_used": bool(result.get("llm_answer_used", False)),
+        "llm_answer_note": result.get("llm_answer_note"),
     }
 
 
@@ -230,10 +231,24 @@ class LLMResolver(Protocol):
         raise NotImplementedError
 
 
+class LLMRewriter(Protocol):
+    """Rewrite an already-grounded answer without adding facts."""
+
+    def rewrite(self, *, user_input: str, intent: str, grounded_answer: str) -> str | None:
+        """Return None for 'no rewrite'."""
+        raise NotImplementedError
+
+
 def llm_enabled(enable_llm: bool | None = None) -> bool:
     if enable_llm is not None:
         return enable_llm
     return os.getenv("QUOTE_AGENT_ENABLE_LLM", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def llm_rewrite_enabled(enable_rewrite: bool | None = None) -> bool:
+    if enable_rewrite is not None:
+        return enable_rewrite
+    return os.getenv("QUOTE_AGENT_ENABLE_LLM_REWRITE", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _openai_resolve_unknown_intent(*, user_input: str, allowed_intents: list[str]) -> dict | None:
@@ -394,7 +409,10 @@ Disambiguation rules:
         if not any(cue in lowered for cue in prohibition_cues):
             intent = "services_offered" if "services_offered" in allowed_intents else "unknown"
             confidence = "low"
-            reason = "Adjusted model decision: general item/job-fit question should not map to prohibited_items without explicit prohibition cues."
+            reason = (
+                "Adjusted model decision: general item/job-fit question should not map to prohibited_items "
+                "without explicit prohibition cues."
+            )
 
     if not isinstance(intent, str) or intent not in allowed_intents:
         return None
@@ -406,12 +424,102 @@ Disambiguation rules:
     return {"intent": intent, "confidence": confidence, "reason": reason}
 
 
+def _openai_rewrite_grounded_answer(*, user_input: str, intent: str, grounded_answer: str) -> str | None:
+    """
+    Optional Day 11 rewrite:
+    - Input is already grounded by tools/formatters.
+    - Output must NOT add new facts; only improve clarity/phrasing/structure.
+    - Returns None if anything looks off.
+    """
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        return None
+
+    model = os.getenv("QUOTE_AGENT_LLM_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
+
+    system = (
+        "You rewrite already-grounded customer support answers for a local business. "
+        "You MUST NOT add new facts, offers, prices, policies, addresses, hours, or claims. "
+        "You may only reorganize, shorten, or clarify the provided grounded answer. "
+        "If the grounded answer is insufficient, keep it as-is. "
+        "Return plain text only (no JSON, no markdown)."
+    )
+
+    user = (
+        "User message:\n"
+        f"{user_input}\n\n"
+        "Intent:\n"
+        f"{intent}\n\n"
+        "Grounded answer (DO NOT ADD FACTS):\n"
+        f"{grounded_answer}\n\n"
+        "Rewrite the grounded answer for clarity and helpfulness while preserving meaning and details."
+    )
+
+    payload = {
+        "model": model,
+        "input": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "max_output_tokens": 250,
+    }
+
+    req = urllib.request.Request(
+        "https://api.openai.com/v1/responses",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, ValueError):
+        return None
+
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+
+    text_out: str | None = None
+    if isinstance(parsed, dict):
+        output = parsed.get("output")
+        if isinstance(output, list) and output:
+            item0 = output[0]
+            if isinstance(item0, dict):
+                content = item0.get("content")
+                if isinstance(content, list) and content:
+                    c0 = content[0]
+                    if isinstance(c0, dict):
+                        text_out = c0.get("text") if isinstance(c0.get("text"), str) else None
+
+    if not text_out:
+        return None
+
+    rewritten = str(text_out).strip()
+    if len(rewritten) < 5:
+        return None
+
+    return rewritten
+
+
 class OpenAIUnknownIntentResolver:
     """LLMResolver that uses OpenAI only for unknown-intent resolution."""
 
     def resolve(self, *, user_input: str, memory: dict, allowed_intents: list[str]) -> dict | None:
         _ = memory
         return _openai_resolve_unknown_intent(user_input=user_input, allowed_intents=allowed_intents)
+
+
+class OpenAIGroundedAnswerRewriter:
+    """LLMRewriter that rewrites tool-grounded answers only."""
+
+    def rewrite(self, *, user_input: str, intent: str, grounded_answer: str) -> str | None:
+        return _openai_rewrite_grounded_answer(user_input=user_input, intent=intent, grounded_answer=grounded_answer)
 
 
 SESSION_MEMORY = {
@@ -1242,9 +1350,7 @@ def _is_low_info_service_question(user_input: str, memory: dict) -> bool:
 def _clarifying_fallback_answer(user_input: str) -> str:
     text = user_input.lower().strip()
     if any(k in text for k in ["how much", "cost", "price"]):
-        return (
-            "Quick check — what are you asking about pricing for (junk removal, dumpster rental, gravel delivery, demolition, etc.)?"
-        )
+        return "Quick check — what are you asking about pricing for (junk removal, dumpster rental, gravel delivery, demolition, etc.)?"
     if "take" in text or "accept" in text:
         return "What item/material are you referring to (and your location)?"
     if "do you do" in text:
@@ -1290,6 +1396,8 @@ def build_response(
     user_input: str,
     llm_used: bool,
     llm_decision: dict | None,
+    llm_answer_used: bool,
+    llm_answer_note: str | None,
     intent: str,
     should_use_tool: bool,
     tool_called: str | None,
@@ -1306,6 +1414,8 @@ def build_response(
         "user_input": user_input,
         "llm_used": llm_used,
         "llm_decision": llm_decision,
+        "llm_answer_used": llm_answer_used,
+        "llm_answer_note": llm_answer_note,
         "intent": intent,
         "should_use_tool": should_use_tool,
         "tool_called": tool_called,
@@ -1320,16 +1430,31 @@ def build_response(
     }
 
 
+def _should_attempt_llm_rewrite(*, tool_result: dict | None, final_answer: str) -> bool:
+    if not isinstance(tool_result, dict):
+        return False
+    if tool_result.get("ok") is not True:
+        return False
+    if not isinstance(final_answer, str) or len(final_answer.strip()) < 5:
+        return False
+    return True
+
+
 def run_agent(
     user_input: str,
     enable_logging: bool | None = None,
     log_path: str | Path | None = None,
     enable_llm: bool | None = None,
     llm_resolver: LLMResolver | None = None,
+    enable_llm_rewrite: bool | None = None,
+    llm_rewriter: LLMRewriter | None = None,
 ) -> dict:
     memory_before = get_memory_snapshot()
     llm_used = False
     llm_decision: dict | None = None
+
+    llm_answer_used = False
+    llm_answer_note: str | None = None
 
     if SESSION_MEMORY.get("quote_intake_active") is True:
         completed, answer, tool_called, tool_result = handle_quote_intake_turn(user_input)
@@ -1348,6 +1473,8 @@ def run_agent(
             user_input=user_input,
             llm_used=llm_used,
             llm_decision=llm_decision,
+            llm_answer_used=llm_answer_used,
+            llm_answer_note=llm_answer_note,
             intent="quote_intake",
             should_use_tool=tool_called is not None,
             tool_called=tool_called,
@@ -1382,6 +1509,8 @@ def run_agent(
             user_input=user_input,
             llm_used=llm_used,
             llm_decision=llm_decision,
+            llm_answer_used=llm_answer_used,
+            llm_answer_note=llm_answer_note,
             intent="quote_intake",
             should_use_tool=False,
             tool_called=None,
@@ -1413,6 +1542,8 @@ def run_agent(
             user_input=user_input,
             llm_used=llm_used,
             llm_decision=llm_decision,
+            llm_answer_used=llm_answer_used,
+            llm_answer_note=llm_answer_note,
             intent=ambiguity_override["intent"],
             should_use_tool=False,
             tool_called=None,
@@ -1475,6 +1606,8 @@ def run_agent(
             user_input=user_input,
             llm_used=llm_used,
             llm_decision=llm_decision,
+            llm_answer_used=llm_answer_used,
+            llm_answer_note=llm_answer_note,
             intent=intent,
             should_use_tool=False,
             tool_called=None,
@@ -1510,6 +1643,22 @@ def run_agent(
             availability_tool_result=availability_tool_result,
         )
 
+    # Day 11: optional grounded rewrite (safe: tool already grounded the answer)
+    if llm_rewrite_enabled(enable_llm_rewrite) and _should_attempt_llm_rewrite(
+        tool_result=tool_result,
+        final_answer=final_answer,
+    ):
+        if llm_rewriter is None:
+            llm_rewriter = OpenAIGroundedAnswerRewriter()
+
+        rewritten = llm_rewriter.rewrite(user_input=user_input, intent=intent, grounded_answer=final_answer)
+        if isinstance(rewritten, str) and rewritten.strip():
+            llm_answer_used = True
+            llm_answer_note = "Tool-grounded answer rewrite applied."
+            final_answer = rewritten.strip()
+        else:
+            llm_answer_note = "Rewrite enabled but no rewrite returned."
+
     entity = _extract_last_entity(user_input)
     update_session_memory(
         user_input=user_input,
@@ -1524,6 +1673,8 @@ def run_agent(
         user_input=user_input,
         llm_used=llm_used,
         llm_decision=llm_decision,
+        llm_answer_used=llm_answer_used,
+        llm_answer_note=llm_answer_note,
         intent=intent,
         should_use_tool=True,
         tool_called=tool_name,
