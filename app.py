@@ -1,5 +1,12 @@
 # app.py
+import os
 import json
+from dotenv import load_dotenv
+
+load_dotenv()
+
+if not os.getenv("OPENAI_API_KEY"):
+    raise ValueError("OPENAI_API_KEY is missing. Put it in your .env file.")
 
 from agent import clear_log_file, read_log_entries, run_agent
 

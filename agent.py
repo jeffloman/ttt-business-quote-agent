@@ -9,6 +9,10 @@ import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Protocol
+import urllib.request
+import urllib.error
+
 
 from tools import (
     format_access_constraints,
@@ -197,6 +201,9 @@ def _build_log_entry(result: dict) -> dict:
         "tool_ok": tool_result.get("ok") if isinstance(tool_result, dict) else None,
         "final_answer": result.get("final_answer"),
         "routing_reason": result.get("routing_reason"),
+        # Day 10: include model routing metadata for inspection via CLI /logs
+        "llm_used": bool(result.get("llm_used", False)),
+        "llm_decision": result.get("llm_decision"),
     }
 
 
@@ -204,6 +211,208 @@ def maybe_log_result(result: dict, enable_logging: bool | None = None, log_path:
     if not logging_enabled(enable_logging):
         return
     append_log_entry(_build_log_entry(result), log_path=log_path)
+
+
+class LLMResolver(Protocol):
+    """Resolve an unknown user request into a known intent in a controlled, tool-grounded way."""
+
+    def resolve(self, *, user_input: str, memory: dict, allowed_intents: list[str]) -> dict | None:
+        """
+        Return None for "no decision".
+
+        Expected dict schema:
+            {
+              "intent": str,            # must be in allowed_intents
+              "confidence": str,        # "low" | "medium" | "high"
+              "reason": str,            # short explanation for logs/debug
+            }
+        """
+        raise NotImplementedError
+
+
+def llm_enabled(enable_llm: bool | None = None) -> bool:
+    if enable_llm is not None:
+        return enable_llm
+    return os.getenv("QUOTE_AGENT_ENABLE_LLM", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _openai_resolve_unknown_intent(*, user_input: str, allowed_intents: list[str]) -> dict | None:
+    """
+    Best-effort OpenAI call that returns a safe intent selection.
+
+    This is intentionally narrow:
+    - Only used when rule-based routing returns "unknown".
+    - Output is restricted to allowed_intents.
+    - If anything is off, returns None (no decision).
+    """
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        return None
+
+    model = os.getenv("QUOTE_AGENT_LLM_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
+
+    intent_guide = """
+Intent definitions:
+- services_offered:
+  Use when the user is asking what kinds of jobs, items, or service categories the business handles.
+  Examples:
+  - "Do you remove furniture?"
+  - "Do you handle yard debris?"
+  - "What kind of things do you take?"
+  - "I'm not sure what category this falls under."
+  - "Is this something you handle?"
+
+- pricing_info:
+  Use when the user is asking about price, cost, rates, estimates, or how much something might cost.
+
+- contact_methods:
+  Use when the user is asking how to call, text, reach, or contact the business.
+
+- availability_info:
+  Use when the user is asking about schedule, openings, appointments, dates, time slots, or when service is available.
+
+- quote_request:
+  Use when the user clearly wants to start getting a quote, estimate, or booking request for their specific job.
+
+- prohibited_items:
+  Use ONLY when the user is specifically asking whether something is not allowed, prohibited, hazardous, restricted, unsafe, or cannot be removed.
+  Strong examples:
+  - "Do you take paint?"
+  - "Are tires allowed?"
+  - "Can you remove chemicals?"
+  - "What items are prohibited?"
+  Do NOT use this intent for general "do you handle this?" or "what category is this?" questions.
+
+- business_info:
+  Use when the user asks general business facts such as service area, company details, or general background.
+
+- unknown:
+  Use when none of the above are a reasonably good match.
+
+Disambiguation rules:
+- If the user is asking whether the business handles a type of job/item in general, prefer services_offered.
+- If the user is asking whether an item is forbidden, dangerous, or not accepted, use prohibited_items.
+- If the user is asking vague "what would I need to do next?" style questions, prefer quote_request only if they are clearly moving toward getting service for their own job. Otherwise use unknown.
+- When in doubt between a real intent and unknown, prefer unknown.
+""".strip()
+
+    system = (
+        "You are a routing helper for a local business quote assistant. "
+        "Your job is to map a single user message to exactly ONE intent from a fixed allowed list. "
+        "Do not invent new intents. "
+        "Use the intent definitions and disambiguation rules carefully. "
+        "Be conservative. If the message does not clearly fit an intent, choose 'unknown'. "
+        "Return strict JSON with exactly these keys: intent, confidence, reason."
+    )
+
+    allowed = ", ".join(allowed_intents)
+    user = (
+        f"Allowed intents: [{allowed}]\n\n"
+        f"{intent_guide}\n\n"
+        f"User message: {user_input!r}\n\n"
+        "Return JSON only."
+    )
+
+    payload = {
+        "model": model,
+        "input": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "text": {"format": {"type": "json_object"}},
+        "max_output_tokens": 250,
+    }
+
+    req = urllib.request.Request(
+        "https://api.openai.com/v1/responses",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, ValueError):
+        return None
+
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+
+    text_out: str | None = None
+    if isinstance(parsed, dict):
+        output = parsed.get("output")
+        if isinstance(output, list) and output:
+            item0 = output[0]
+            if isinstance(item0, dict):
+                content = item0.get("content")
+                if isinstance(content, list) and content:
+                    c0 = content[0]
+                    if isinstance(c0, dict):
+                        text_out = c0.get("text") if isinstance(c0.get("text"), str) else None
+
+    if not text_out:
+        return None
+
+    try:
+        decision = json.loads(text_out)
+    except json.JSONDecodeError:
+        return None
+
+    if not isinstance(decision, dict):
+        return None
+
+    intent = decision.get("intent")
+    confidence = decision.get("confidence")
+    reason = decision.get("reason")
+
+    if intent == "prohibited_items":
+        lowered = user_input.lower()
+        prohibition_cues = [
+            "prohibited",
+            "allowed",
+            "not allowed",
+            "can you take",
+            "do you take",
+            "hazardous",
+            "chemical",
+            "chemicals",
+            "paint",
+            "tire",
+            "tires",
+            "explosive",
+            "explosives",
+            "restricted",
+            "forbidden",
+            "unsafe",
+        ]
+        if not any(cue in lowered for cue in prohibition_cues):
+            intent = "services_offered" if "services_offered" in allowed_intents else "unknown"
+            confidence = "low"
+            reason = "Adjusted model decision: general item/job-fit question should not map to prohibited_items without explicit prohibition cues."
+
+    if not isinstance(intent, str) or intent not in allowed_intents:
+        return None
+    if not isinstance(confidence, str) or confidence not in {"low", "medium", "high"}:
+        confidence = "low"
+    if not isinstance(reason, str):
+        reason = "Model-assisted unknown routing."
+
+    return {"intent": intent, "confidence": confidence, "reason": reason}
+
+
+class OpenAIUnknownIntentResolver:
+    """LLMResolver that uses OpenAI only for unknown-intent resolution."""
+
+    def resolve(self, *, user_input: str, memory: dict, allowed_intents: list[str]) -> dict | None:
+        _ = memory
+        return _openai_resolve_unknown_intent(user_input=user_input, allowed_intents=allowed_intents)
+
 
 SESSION_MEMORY = {
     "last_intent": None,
@@ -596,6 +805,7 @@ INTENT_RULES = [
             "trailer",
             "trailers",
             "furniture",
+            "furniture",
             "mattress",
             "mattresses",
         ],
@@ -954,7 +1164,6 @@ def resolve_followup_intent(user_input: str, memory: dict) -> dict | None:
 
 
 def _is_short_ambiguous_pricing(user_input: str, memory: dict) -> bool:
-    """Guardrail: short pricing questions without any referent/context should not guess."""
     text = user_input.lower().strip()
     if len(text.split()) > 3:
         return False
@@ -983,7 +1192,6 @@ def _is_short_ambiguous_pricing(user_input: str, memory: dict) -> bool:
 
 
 def _is_ambiguous_pronoun_request(user_input: str, memory: dict) -> bool:
-    """Guardrail: pronoun-led requests without prior context should ask what 'that/it' refers to."""
     text = user_input.lower().strip()
 
     if len(text.split()) > 5:
@@ -1015,7 +1223,6 @@ def _is_ambiguous_pronoun_request(user_input: str, memory: dict) -> bool:
 
 
 def _is_low_info_service_question(user_input: str, memory: dict) -> bool:
-    """Guardrail: vague service questions like 'Do you do it?' should request clarification."""
     text = user_input.lower().strip()
     if text in {
         "do you do it",
@@ -1046,7 +1253,6 @@ def _clarifying_fallback_answer(user_input: str) -> str:
 
 
 def _route_ambiguity(user_input: str, memory_before: dict) -> dict | None:
-    """Return a response override if we should NOT guess."""
     if _is_short_ambiguous_pricing(user_input, memory_before):
         return {
             "intent": "unknown",
@@ -1082,6 +1288,8 @@ def _route_ambiguity(user_input: str, memory_before: dict) -> dict | None:
 
 def build_response(
     user_input: str,
+    llm_used: bool,
+    llm_decision: dict | None,
     intent: str,
     should_use_tool: bool,
     tool_called: str | None,
@@ -1096,6 +1304,8 @@ def build_response(
 ) -> dict:
     return {
         "user_input": user_input,
+        "llm_used": llm_used,
+        "llm_decision": llm_decision,
         "intent": intent,
         "should_use_tool": should_use_tool,
         "tool_called": tool_called,
@@ -1114,8 +1324,12 @@ def run_agent(
     user_input: str,
     enable_logging: bool | None = None,
     log_path: str | Path | None = None,
+    enable_llm: bool | None = None,
+    llm_resolver: LLMResolver | None = None,
 ) -> dict:
     memory_before = get_memory_snapshot()
+    llm_used = False
+    llm_decision: dict | None = None
 
     if SESSION_MEMORY.get("quote_intake_active") is True:
         completed, answer, tool_called, tool_result = handle_quote_intake_turn(user_input)
@@ -1132,6 +1346,8 @@ def run_agent(
         memory_after = get_memory_snapshot()
         result = build_response(
             user_input=user_input,
+            llm_used=llm_used,
+            llm_decision=llm_decision,
             intent="quote_intake",
             should_use_tool=tool_called is not None,
             tool_called=tool_called,
@@ -1164,6 +1380,8 @@ def run_agent(
         memory_after = get_memory_snapshot()
         result = build_response(
             user_input=user_input,
+            llm_used=llm_used,
+            llm_decision=llm_decision,
             intent="quote_intake",
             should_use_tool=False,
             tool_called=None,
@@ -1193,6 +1411,8 @@ def run_agent(
         memory_after = get_memory_snapshot()
         result = build_response(
             user_input=user_input,
+            llm_used=llm_used,
+            llm_decision=llm_decision,
             intent=ambiguity_override["intent"],
             should_use_tool=False,
             tool_called=None,
@@ -1217,6 +1437,27 @@ def run_agent(
     routing_reason = routing["routing_reason"]
     debug = routing["debug"]
 
+    if intent == "unknown" and llm_enabled(enable_llm):
+        if llm_resolver is None:
+            llm_resolver = OpenAIUnknownIntentResolver()
+
+        allowed_intents = sorted(set(list(TOOL_REGISTRY.keys()) + ["unknown", "greeting"]))
+        llm_decision = llm_resolver.resolve(
+            user_input=user_input,
+            memory=memory_before,
+            allowed_intents=allowed_intents,
+        )
+
+        if isinstance(llm_decision, dict):
+            llm_used = True
+            chosen_intent = llm_decision.get("intent")
+            if isinstance(chosen_intent, str) and chosen_intent in TOOL_REGISTRY:
+                intent = chosen_intent
+                matched_keywords = ["llm_unknown_intent"]
+                confidence = str(llm_decision.get("confidence") or "medium")
+                routing_reason = f"Model-assisted routing for unknown intent. ({llm_decision.get('reason')})"
+                debug = {"llm": llm_decision, "previous": routing}
+
     if intent not in TOOL_REGISTRY:
         final_answer = answer_directly(intent)
         entity = _extract_last_entity(user_input)
@@ -1232,6 +1473,8 @@ def run_agent(
         memory_after = get_memory_snapshot()
         result = build_response(
             user_input=user_input,
+            llm_used=llm_used,
+            llm_decision=llm_decision,
             intent=intent,
             should_use_tool=False,
             tool_called=None,
@@ -1279,6 +1522,8 @@ def run_agent(
     memory_after = get_memory_snapshot()
     result = build_response(
         user_input=user_input,
+        llm_used=llm_used,
+        llm_decision=llm_decision,
         intent=intent,
         should_use_tool=True,
         tool_called=tool_name,

@@ -11,6 +11,22 @@ from tools import (
     format_services_offered,
 )
 
+class MockLLMResolver:
+    """Deterministic fake for Day 10 tests."""
+
+    def __init__(self, mapping: dict[str, str]):
+        self._mapping = mapping
+
+    def resolve(self, *, user_input: str, memory: dict, allowed_intents: list[str]):  # noqa: ANN001
+        _ = memory
+        intent = self._mapping.get(user_input)
+        if intent is None:
+            return None
+        if intent not in allowed_intents:
+            return None
+        return {"intent": intent, "confidence": "high", "reason": "mock"}
+
+
 TEST_CASES = [
     {"input": "How much does junk removal cost?", "expected_intent": "pricing_info", "expected_tool": "get_pricing_info"},
     {"input": "How do I book an appointment?", "expected_intent": "contact_methods", "expected_tool": "get_contact_methods"},
@@ -406,9 +422,43 @@ def run_logging_harness():
     print()
 
 
+def run_day10_llm_tests():
+    print("Running Day 10 LLM-assisted unknown-intent tests...\n")
+
+    reset_session_memory()
+
+    no_llm = run_agent("What do you charge?")
+    if no_llm["intent"] != "unknown":
+        print("Day10 FAIL: expected rule-based intent unknown for 'What do you charge?'")
+        print(no_llm)
+        return False
+
+    resolver = MockLLMResolver({"What do you charge?": "pricing_info", "Where do you go?": "service_area"})
+
+    with_llm = run_agent("What do you charge?", enable_llm=True, llm_resolver=resolver)
+    ok = True
+    if with_llm["intent"] != "pricing_info" or with_llm["tool_called"] != "get_pricing_info":
+        ok = False
+        print("Day10 FAIL: expected LLM-assisted routing to pricing_info with tool call.")
+        print(with_llm)
+
+    with_llm2 = run_agent("Where do you go?", enable_llm=True, llm_resolver=resolver)
+    if with_llm2["intent"] != "service_area" or with_llm2["tool_called"] != "get_service_area":
+        ok = False
+        print("Day10 FAIL: expected LLM-assisted routing to service_area with tool call.")
+        print(with_llm2)
+
+    if ok:
+        print("Day 10 LLM tests: PASS\n")
+    else:
+        print("Day 10 LLM tests: FAIL\n")
+    return ok
+
+
 def run_all_tests():
     run_regression_tests()
     run_logging_harness()
+    _ = run_day10_llm_tests()
 
 
 if __name__ == "__main__":
