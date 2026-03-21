@@ -1,0 +1,140 @@
+<!-- templates/index.html -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Local Business Quote Agent — Demo UI</title>
+    <style>
+      body { font-family: ui-sans-serif, system-ui, Arial; margin: 0; padding: 0; }
+      .wrap { max-width: 980px; margin: 0 auto; padding: 20px; }
+      .card { border: 1px solid #ddd; border-radius: 10px; padding: 16px; margin: 14px 0; }
+      .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+      .row > * { flex: 1; }
+      textarea { width: 100%; min-height: 90px; padding: 10px; font-size: 14px; }
+      button { padding: 10px 14px; border: 0; border-radius: 8px; cursor: pointer; }
+      .btn { background: #1f6feb; color: white; }
+      .btn2 { background: #444; color: white; }
+      .btn3 { background: #b42318; color: white; }
+      pre { background: #0b0f14; color: #e6edf3; padding: 12px; border-radius: 10px; overflow: auto; }
+      .muted { color: #666; font-size: 13px; }
+      .warning { background: #fff3cd; border: 1px solid #ffe69c; padding: 10px; border-radius: 10px; }
+      .pill { display: inline-block; padding: 4px 10px; border-radius: 999px; border: 1px solid #ddd; font-size: 12px; }
+      .grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+      @media (min-width: 900px) {
+        .grid { grid-template-columns: 1fr 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h2>Local Business Quote Agent — Demo UI</h2>
+
+      {% if warning %}
+        <div class="warning card">
+          <strong>Warning:</strong> {{ warning }}
+        </div>
+      {% endif %}
+
+      <div class="card">
+        <div class="row">
+          <div class="muted">
+            <div class="pill">LLM routing: {{ "ON" if llm_enabled else "OFF" }}</div>
+            <div class="pill">Rewrite: {{ "ON" if rewrite_enabled else "OFF" }}</div>
+            <div class="pill">Log: {{ log_path }}</div>
+            <div class="pill">Demo prompts: {{ demo_prompt_count }}</div>
+          </div>
+          <div style="text-align:right;">
+            <label class="muted">
+              <input id="showRaw" type="checkbox" />
+              Show raw JSON
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h3>Single prompt</h3>
+          <textarea id="promptBox" placeholder="Type a prompt..."></textarea>
+          <div class="row">
+            <button class="btn" id="sendBtn">Send</button>
+            <button class="btn2" id="resetBtn">Reset session + clear logs</button>
+          </div>
+          <div class="muted">Tip: Try an unknown prompt to demonstrate LLM routing fallback (if enabled).</div>
+        </div>
+
+        <div class="card">
+          <h3>Demo run (pre-canned prompts)</h3>
+          <div class="row">
+            <button class="btn" id="demoBtn">Run Demo</button>
+            <button class="btn3" id="clearOutBtn">Clear Output</button>
+          </div>
+          <div class="muted">Runs your WOW_PROMPTS, then shows logs tail + summary.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Output</h3>
+        <pre id="out">(nothing yet)</pre>
+      </div>
+    </div>
+
+    <script>
+      const out = document.getElementById("out");
+      const showRaw = document.getElementById("showRaw");
+      const promptBox = document.getElementById("promptBox");
+
+      function setOut(obj) {
+        out.textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+      }
+
+      async function postJson(url, body) {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `Request failed: ${res.status}`);
+        return data;
+      }
+
+      document.getElementById("sendBtn").addEventListener("click", async () => {
+        const prompt = promptBox.value.trim();
+        if (!prompt) return setOut("Prompt is empty.");
+        setOut("Running...");
+        try {
+          const data = await postJson("/api/prompt", { prompt, show_raw: showRaw.checked });
+          setOut(data);
+        } catch (e) {
+          setOut(String(e));
+        }
+      });
+
+      document.getElementById("demoBtn").addEventListener("click", async () => {
+        setOut("Running demo...");
+        try {
+          const data = await postJson("/api/demo", { show_raw: showRaw.checked });
+          setOut(data);
+        } catch (e) {
+          setOut(String(e));
+        }
+      });
+
+      document.getElementById("resetBtn").addEventListener("click", async () => {
+        setOut("Resetting...");
+        try {
+          const data = await postJson("/api/reset", {});
+          setOut(data);
+        } catch (e) {
+          setOut(String(e));
+        }
+      });
+
+      document.getElementById("clearOutBtn").addEventListener("click", () => {
+        setOut("(cleared)");
+      });
+    </script>
+  </body>
+</html>
