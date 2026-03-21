@@ -1,4 +1,7 @@
-# app.py
+# =========================
+# FILE: app.py
+# (replaces your current version that hard-fails without OPENAI_API_KEY)
+# =========================
 import json
 import os
 from typing import Callable
@@ -7,10 +10,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-if not os.getenv("OPENAI_API_KEY"):
-    raise ValueError("OPENAI_API_KEY is missing. Put it in your .env file.")
-
-from agent import clear_log_file, read_log_entries, run_agent
+from agent import clear_log_file, read_log_entries, run_agent  # noqa: E402
 
 
 def _print_log_tail(limit: int = 5) -> None:
@@ -35,10 +35,26 @@ def _print_help() -> None:
     print("  exit          Quit\n")
 
 
+def _maybe_warn_missing_openai_key() -> None:
+    wants_llm = os.getenv("QUOTE_AGENT_ENABLE_LLM", "0").strip().lower() in {"1", "true", "yes", "on"}
+    wants_rewrite = os.getenv("QUOTE_AGENT_ENABLE_LLM_REWRITE", "0").strip().lower() in {"1", "true", "yes", "on"}
+    if not (wants_llm or wants_rewrite):
+        return
+    if os.getenv("OPENAI_API_KEY", "").strip():
+        return
+
+    print(
+        "WARNING: OpenAI features are enabled (QUOTE_AGENT_ENABLE_LLM and/or QUOTE_AGENT_ENABLE_LLM_REWRITE), "
+        "but OPENAI_API_KEY is missing. LLM features will be skipped/fall back to rules+tools.\n"
+    )
+
+
 def main() -> None:
     print("Local Business Quote Agent")
     print("Logging is ON for CLI runs.")
     print("Type 'exit' to quit. Type '/help' for commands.\n")
+
+    _maybe_warn_missing_openai_key()
 
     commands: dict[str, Callable[[], None]] = {
         "/help": _print_help,
