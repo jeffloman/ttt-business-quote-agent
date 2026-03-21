@@ -1,7 +1,4 @@
-# =========================
-# FILE: app.py
-# (replaces your current version that hard-fails without OPENAI_API_KEY)
-# =========================
+# app.py
 import json
 import os
 from typing import Callable
@@ -40,6 +37,7 @@ def _maybe_warn_missing_openai_key() -> None:
     wants_rewrite = os.getenv("QUOTE_AGENT_ENABLE_LLM_REWRITE", "0").strip().lower() in {"1", "true", "yes", "on"}
     if not (wants_llm or wants_rewrite):
         return
+
     if os.getenv("OPENAI_API_KEY", "").strip():
         return
 
