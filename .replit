@@ -1,0 +1,18 @@
+# =========================
+# FILE: .replit
+# =========================
+# Replit config: click "Run" to start the interactive CLI.
+run = "python app.py"
+
+
+# =========================
+# FILE: replit.nix
+# =========================
+{ pkgs }: {
+  deps = [
+    pkgs.python312
+    pkgs.python312Packages.pip
+    pkgs.cacert
+    pkgs.openssl
+  ];
+}
