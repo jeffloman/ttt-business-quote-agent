@@ -1440,6 +1440,35 @@ def _should_attempt_llm_rewrite(*, tool_result: dict | None, final_answer: str) 
     return True
 
 
+# =========================
+# Policy guard (NEW)
+# =========================
+
+_HATE_SERVICE_PATTERNS: list[str] = [
+    r"\bserve\s+(racists?|nazis?|white\s*supremacists?|kkk|neo[-\s]?nazis?)\b",
+    r"\b(do\s+you|will\s+you|can\s+you)\s+serve\s+(racists?|nazis?|white\s*supremacists?)\b",
+    r"\bwe\s+are\s+(racists?|nazis?|white\s*supremacists?)\b",
+]
+
+
+def _policy_guard(user_input: str) -> str | None:
+    """
+    Blocks/redirects prompts asking about serving hate groups.
+
+    Why: your intent rules include "serve" → service_area, which incorrectly routes
+    questions like "Do you serve racists?" into coverage. This guard runs before routing.
+    """
+    t = user_input.strip().lower()
+    for pat in _HATE_SERVICE_PATTERNS:
+        if re.search(pat, t, flags=re.IGNORECASE):
+            return (
+                "We serve customers respectfully and professionally, and we don’t support hateful or "
+                "discriminatory beliefs or behavior. If you’d like, tell me what service you need and "
+                "your location, and I can provide a quote."
+            )
+    return None
+
+
 def run_agent(
     user_input: str,
     enable_logging: bool | None = None,
@@ -1455,6 +1484,42 @@ def run_agent(
 
     llm_answer_used = False
     llm_answer_note: str | None = None
+
+    # =========================
+    # Policy guard (NEW): runs before quote intake + routing
+    # =========================
+    guarded_answer = _policy_guard(user_input)
+    if guarded_answer is not None:
+        entity = _extract_last_entity(user_input)
+        update_session_memory(
+            user_input=user_input,
+            intent="policy_guard",
+            tool_called=None,
+            final_answer=guarded_answer,
+            entity=entity,
+        )
+
+        memory_after = get_memory_snapshot()
+        result = build_response(
+            user_input=user_input,
+            llm_used=llm_used,
+            llm_decision=llm_decision,
+            llm_answer_used=llm_answer_used,
+            llm_answer_note=llm_answer_note,
+            intent="policy_guard",
+            should_use_tool=False,
+            tool_called=None,
+            tool_result=None,
+            final_answer=guarded_answer,
+            routing_reason="Policy guard: prompt asks about serving hate groups; redirecting safely.",
+            matched_keywords=["policy_guard"],
+            confidence="high",
+            debug={"policy_guard_triggered": True},
+            memory_before=memory_before,
+            memory_after=memory_after,
+        )
+        maybe_log_result(result, enable_logging=enable_logging, log_path=log_path)
+        return result
 
     if SESSION_MEMORY.get("quote_intake_active") is True:
         completed, answer, tool_called, tool_result = handle_quote_intake_turn(user_input)

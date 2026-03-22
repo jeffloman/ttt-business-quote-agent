@@ -6,12 +6,6 @@ Upgrades:
 - Pretty HTML rendering (cards, per-run output, collapsible raw JSON/logs)
 - Free-port selection (avoids PORT=3000 conflicts)
 - Small health endpoint for uptime checks
-
-Run:
-  python web_app.py
-
-Env:
-  PORT=3000 (optional; will try this first)
 """
 
 from __future__ import annotations
@@ -142,6 +136,7 @@ def api_prompt():
     result = run_agent(user_input, enable_logging=True)
     response: dict[str, Any] = {
         "ok": True,
+        "prompt": user_input,
         "final_answer": result.get("final_answer", ""),
     }
     if show_raw:
