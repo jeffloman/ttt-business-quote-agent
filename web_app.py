@@ -1,25 +1,24 @@
-# web_app.py
+# FILE: web_app.py
 """
-Minimal Flask UI wrapper for the Local Business Quote Agent.
+Local Business Quote Agent — Flask Demo UI.
 
-Features:
-- Single prompt mode (type one prompt at a time)
-- Demo mode (runs WOW_PROMPTS)
-- Toggle: show only final_answer vs raw JSON response
-- Shows summary counts by scanning JSONL log
+Upgrades:
+- Pretty HTML rendering (cards, per-run output, collapsible raw JSON/logs)
+- Free-port selection (avoids PORT=3000 conflicts)
+- Small health endpoint for uptime checks
 
 Run:
   python web_app.py
 
-Replit:
-  Workflow command: python web_app.py
+Env:
+  PORT=3000 (optional; will try this first)
 """
 
 from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
+import socket
 from typing import Any
 
 from dotenv import load_dotenv
@@ -35,7 +34,6 @@ from agent import (  # noqa: E402
 )
 
 from demo import WOW_PROMPTS  # noqa: E402
-
 
 app = Flask(__name__)
 
@@ -94,6 +92,32 @@ def _warning_banner() -> str | None:
     )
 
 
+def _is_port_free(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            s.bind((host, port))
+        except OSError:
+            return False
+        return True
+
+
+def _pick_port(host: str, preferred: int) -> int:
+    if preferred == 0:
+        return 0
+    if _is_port_free(host, preferred):
+        return preferred
+    for p in range(preferred + 1, preferred + 51):
+        if _is_port_free(host, p):
+            return p
+    return 0  # let OS pick an ephemeral port
+
+
+@app.get("/health")
+def health():
+    return jsonify({"ok": True})
+
+
 @app.get("/")
 def index():
     return render_template(
@@ -116,7 +140,7 @@ def api_prompt():
         return jsonify({"ok": False, "error": "Prompt is empty."}), 400
 
     result = run_agent(user_input, enable_logging=True)
-    response = {
+    response: dict[str, Any] = {
         "ok": True,
         "final_answer": result.get("final_answer", ""),
     }
@@ -165,8 +189,10 @@ def api_reset():
 
 
 def main() -> None:
-    port = int(os.getenv("PORT", "3000"))
-    app.run(host="0.0.0.0", port=port, debug=False)
+    host = "0.0.0.0"
+    preferred = int(os.getenv("PORT", "3000"))
+    port = _pick_port(host, preferred)
+    app.run(host=host, port=port, debug=False)
 
 
 if __name__ == "__main__":
