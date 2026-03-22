@@ -6,17 +6,11 @@ cd "$PROJECT_ROOT"
 
 VENV_DIR=".venv"
 ACTIVATE="$VENV_DIR/bin/activate"
-REQ_FILE="requirements.txt"
-MARKER="$VENV_DIR/.requirements_sha256"
 
-requirements_sha() {
-  python - <<'PY'
-import hashlib, pathlib
-p = pathlib.Path("requirements.txt")
-h = hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else ""
-print(h)
-PY
-}
+if [[ ! -f "requirements.txt" ]]; then
+  echo "ERROR: requirements.txt not found in project root: $PROJECT_ROOT"
+  exit 1
+fi
 
 if [[ ! -f "$ACTIVATE" ]]; then
   echo "Creating venv: $VENV_DIR"
@@ -26,26 +20,12 @@ fi
 # shellcheck disable=SC1090
 source "$ACTIVATE"
 
-REQ_SHA="$(requirements_sha)"
-NEEDS_INSTALL="0"
+# Replit sometimes forces pip --user via env/config; that breaks in venv.
+unset PIP_USER PYTHONUSERBASE PIP_TARGET
+export PIP_CONFIG_FILE=/dev/null
 
-if [[ ! -f "$REQ_FILE" ]]; then
-  echo "ERROR: $REQ_FILE not found in project root."
-  exit 1
-fi
-
-if [[ ! -f "$MARKER" ]]; then
-  NEEDS_INSTALL="1"
-elif [[ "$(cat "$MARKER")" != "$REQ_SHA" ]]; then
-  NEEDS_INSTALL="1"
-fi
-
-if [[ "$NEEDS_INSTALL" == "1" ]]; then
-  echo "Installing dependencies (requirements changed or first run)..."
-  python -m pip install -U pip
-  python -m pip install -r "$REQ_FILE"
-  echo "$REQ_SHA" > "$MARKER"
-fi
+python -m pip install -U pip
+python -m pip install -r requirements.txt
 
 echo "Starting web UI..."
 exec python web_app.py
