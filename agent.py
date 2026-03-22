@@ -1068,7 +1068,7 @@ def _extract_last_entity(user_input: str) -> str | None:
         "booking": ["book", "booking", "appointment", "schedule"],
         "availability": ["available", "availability", "openings", "soonest"],
         "hours": ["hours", "open", "close"],
-        "service area": ["service area", "serve", "areas"],
+        "service area": ["service area", "areas", "coverage", "service-area"],
         "recycling": ["recycle", "recycling"],
         "donation": ["donate", "donation"],
         "trust": ["insured", "bonded", "background", "checked", "veteran", "veterans"],
@@ -1441,24 +1441,60 @@ def _should_attempt_llm_rewrite(*, tool_result: dict | None, final_answer: str) 
 
 
 # =========================
-# Policy guard (NEW)
+# Policy guard (expanded)
 # =========================
 
 _HATE_SERVICE_PATTERNS: list[str] = [
     r"\bserve\s+(racists?|nazis?|white\s*supremacists?|kkk|neo[-\s]?nazis?)\b",
-    r"\b(do\s+you|will\s+you|can\s+you)\s+serve\s+(racists?|nazis?|white\s*supremacists?)\b",
-    r"\bwe\s+are\s+(racists?|nazis?|white\s*supremacists?)\b",
+    r"\b(do\s+you|will\s+you|can\s+you)\s+serve\s+(racists?|nazis?|white\s*supremacists?|kkk|neo[-\s]?nazis?)\b",
+    r"\bwe\s+(are|re)\s+(racists?|nazis?|white\s*supremacists?|kkk|neo[-\s]?nazis?)\b",
+]
+
+# Keep this list conservative—broad enough for the common cases, but not so broad it false-trips.
+_PROTECTED_GROUP_TERMS: list[str] = [
+    # race/ethnicity (common variants)
+    "black", "blacks", "white", "whites", "asian", "asians",
+    "hispanic", "hispanics", "latino", "latinos", "latina", "latinas",
+    "mexican", "mexicans", "arab", "arabs",
+
+    # religion
+    "muslim", "muslims", "islamic",
+    "jew", "jews", "jewish",
+    "christian", "christians",
+
+    # nationality/immigration (common phrasing)
+    "immigrant", "immigrants", "foreigners",
+
+    # LGBTQ+
+    "gay", "gays", "lesbian", "lesbians", "bisexual", "bisexuals",
+    "trans", "transgender", "nonbinary", "non-binary", "queer",
+]
+
+# “no [group]”, “we don’t serve [group]”, “do you discriminate against [group]”
+_DISCRIMINATION_PATTERNS: list[str] = [
+    r"\bdo\s+you\s+discriminate\b",
+    r"\bare\s+you\s+racist\b",
+    r"\bdo\s+you\s+(refuse|deny)\s+service\b",
+    r"\bdo\s+you\s+serve\s+everyone\b",
+    r"\bdo\s+you\s+serve\s+all\s+(customers|people)\b",
+    r"\bwe\s+(do\s+not|don't)\s+serve\s+({group})\b",
+    r"\bno\s+({group})\b",
+    r"\b(we\s+)?(do\s+not|don't)\s+serve\s+({group})\b",
+    r"\bdo\s+you\s+serve\s+({group})\b",
+    r"\bdo\s+you\s+discriminate\s+against\s+({group})\b",
 ]
 
 
 def _policy_guard(user_input: str) -> str | None:
     """
-    Blocks/redirects prompts asking about serving hate groups.
+    Blocks/redirects discriminatory prompts.
 
-    Why: your intent rules include "serve" → service_area, which incorrectly routes
-    questions like "Do you serve racists?" into coverage. This guard runs before routing.
+    Why: intent rules include "serve" which can mis-route discrimination prompts to service-area.
+    This guard runs before routing and returns a business-safe statement.
     """
     t = user_input.strip().lower()
+
+    # Hard-coded hate-group patterns
     for pat in _HATE_SERVICE_PATTERNS:
         if re.search(pat, t, flags=re.IGNORECASE):
             return (
@@ -1466,6 +1502,17 @@ def _policy_guard(user_input: str) -> str | None:
                 "discriminatory beliefs or behavior. If you’d like, tell me what service you need and "
                 "your location, and I can provide a quote."
             )
+
+    # Expand to “discriminate / no [group] / we don’t serve [group]”
+    group_union = "|".join(re.escape(g) for g in _PROTECTED_GROUP_TERMS)
+    for raw_pat in _DISCRIMINATION_PATTERNS:
+        pat = raw_pat.format(group=group_union)
+        if re.search(pat, t, flags=re.IGNORECASE):
+            return (
+                "We treat customers respectfully and provide service without discrimination. "
+                "If you tell me what you need (service type) and your location, I can help with a quote."
+            )
+
     return None
 
 
