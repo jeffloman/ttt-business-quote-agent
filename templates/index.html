@@ -1,4 +1,3 @@
-<!-- FILE: templates/index.html -->
 <!doctype html>
 <html lang="en">
   <head>
@@ -7,129 +6,560 @@
     <title>Local Business Quote Agent — Demo UI</title>
     <style>
       :root {
-        --bg: #0b0f14;
-        --card: #0f1720;
-        --text: #e6edf3;
-        --muted: #9aa4b2;
-        --border: #263241;
-        --accent: #2f81f7;
-        --danger: #f85149;
-        --ok: #2ea043;
+        --bg: #08111f;
+        --bg2: #0d1728;
+        --card: rgba(11, 21, 38, 0.92);
+        --card-2: rgba(15, 27, 47, 0.95);
+        --text: #e6edf7;
+        --muted: #9dadc3;
+        --border: rgba(153, 181, 217, 0.14);
+        --accent: #4f8cff;
+        --accent-2: #7b5cff;
+        --danger: #ff6b6b;
+        --ok: #32c48d;
+        --shadow: 0 22px 50px rgba(0,0,0,.28);
+        --radius: 20px;
       }
-      body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Arial; }
-      .wrap { max-width: 1050px; margin: 0 auto; padding: 22px; }
-      .topbar { display:flex; gap:14px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
-      .title { display:flex; flex-direction: column; gap: 2px; }
-      .title h1 { margin:0; font-size: 20px; letter-spacing: .2px; }
+
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--text);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(79,140,255,.16), transparent 28%),
+          radial-gradient(circle at top right, rgba(123,92,255,.10), transparent 24%),
+          linear-gradient(180deg, #08111f 0%, #0a1423 100%);
+      }
+
+      .wrap { max-width: 1200px; margin: 0 auto; padding: 28px 20px 42px; }
+      .topbar {
+        position: sticky;
+        top: 14px;
+        z-index: 20;
+        display:flex;
+        gap:14px;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-bottom: 18px;
+        padding: 14px 18px;
+        background: rgba(8, 17, 31, 0.74);
+        backdrop-filter: blur(14px);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        box-shadow: var(--shadow);
+      }
+
+      .title { display:flex; flex-direction: column; gap: 3px; }
+      .eyebrow { color: #8fb4ff; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
+      .title h1 { margin:0; font-size: 22px; letter-spacing: .2px; }
       .title .sub { color: var(--muted); font-size: 13px; }
-      .grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
-      @media (min-width: 900px) { .grid { grid-template-columns: 1fr 1fr; } }
 
-      .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; box-shadow: 0 8px 20px rgba(0,0,0,.25); }
+      .hero {
+        display: grid;
+        grid-template-columns: 1.2fr .8fr;
+        gap: 18px;
+        margin-bottom: 18px;
+      }
+
+      .card {
+        background: linear-gradient(180deg, var(--card), var(--card-2));
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 18px;
+        box-shadow: var(--shadow);
+      }
+
+      .hero h2 {
+        margin: 0 0 12px 0;
+        font-size: 30px;
+        line-height: 1.1;
+        max-width: 14ch;
+      }
+
+      .hero p { color: var(--muted); margin: 0 0 16px 0; line-height: 1.5; }
+
+      .stat-grid, .meta-grid, .action-grid, .grid {
+        display: grid;
+        gap: 14px;
+      }
+      .stat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .meta-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .action-grid { grid-template-columns: 1fr 1fr; }
+      .grid { grid-template-columns: 1.15fr .85fr; }
+
+      @media (max-width: 980px) {
+        .hero, .grid, .action-grid, .meta-grid { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 760px) {
+        .stat-grid { grid-template-columns: 1fr; }
+      }
+
+      .mini-stat {
+        padding: 14px;
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        background: rgba(255,255,255,.02);
+      }
+      .mini-stat .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+      .mini-stat .v { font-size: 20px; font-weight: 700; margin-top: 8px; }
+
+      .section-title {
+        display:flex;
+        align-items:center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+      .section-title h3, .section-title h2 {
+        margin: 0;
+        font-size: 16px;
+      }
+
       .row { display:flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-      .row > * { flex: 1; }
-      .pill { display:inline-flex; align-items:center; gap: 8px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); font-size: 12px; }
-      .pill b { color: var(--text); font-weight: 600; }
-      .warn { border-color: #6e5f1e; background: rgba(240, 185, 11, .08); }
-      .ok { border-color: #1f6f3b; background: rgba(46, 160, 67, .08); }
-      .danger { border-color: #7a1f1f; background: rgba(248, 81, 73, .08); }
+      .row > .grow { flex: 1 1 auto; }
 
-      textarea { width: 100%; min-height: 100px; resize: vertical; border-radius: 12px; border: 1px solid var(--border); background: #0b1220; color: var(--text); padding: 12px; font-size: 14px; }
-      button { padding: 10px 14px; border: 1px solid transparent; border-radius: 12px; cursor: pointer; font-weight: 600; }
-      .btn { background: var(--accent); color: white; }
-      .btn2 { background: transparent; border-color: var(--border); color: var(--text); }
-      .btn3 { background: transparent; border-color: #6a2432; color: #ffb4b4; }
+      .pill {
+        display:inline-flex;
+        align-items:center;
+        gap: 8px;
+        padding: 8px 11px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 12px;
+        background: rgba(255,255,255,.03);
+      }
+      .pill b { color: var(--text); font-weight: 700; }
+      .warn { border-color: rgba(242, 201, 76, .38); background: rgba(242, 201, 76, .08); }
+      .ok { border-color: rgba(50, 196, 141, .36); background: rgba(50, 196, 141, .08); }
+      .danger { border-color: rgba(255, 107, 107, .36); background: rgba(255, 107, 107, .09); }
 
-      .out { display:flex; flex-direction: column; gap: 10px; }
-      .answer { border-left: 4px solid var(--ok); padding-left: 12px; }
-      .answer h3 { margin: 0 0 6px 0; font-size: 14px; color: var(--muted); }
-      .answer .txt { font-size: 15px; line-height: 1.45; white-space: pre-wrap; }
+      label.toggle {
+        display:flex;
+        align-items:center;
+        gap: 10px;
+        cursor: pointer;
+      }
 
-      details { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: rgba(255,255,255,.02); }
-      details > summary { cursor: pointer; color: var(--muted); font-weight: 600; }
-      pre { margin: 10px 0 0 0; padding: 12px; border-radius: 12px; background: #05080d; overflow: auto; color: var(--text); }
+      textarea {
+        width: 100%;
+        min-height: 136px;
+        resize: vertical;
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        background: rgba(2, 8, 18, 0.55);
+        color: var(--text);
+        padding: 14px 15px;
+        font-size: 15px;
+        line-height: 1.5;
+        outline: none;
+        transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+      }
+      textarea:focus {
+        border-color: rgba(79, 140, 255, .55);
+        box-shadow: 0 0 0 4px rgba(79, 140, 255, .14);
+      }
 
-      .muted { color: var(--muted); font-size: 13px; }
-      .small { font-size: 12px; color: var(--muted); }
-      .divider { height: 1px; background: var(--border); margin: 8px 0; }
+      button {
+        padding: 11px 15px;
+        border: 1px solid transparent;
+        border-radius: 14px;
+        cursor: pointer;
+        font-weight: 700;
+        font-size: 14px;
+        transition: transform .14s ease, opacity .14s ease, border-color .14s ease, background .14s ease;
+      }
+      button:hover { transform: translateY(-1px); }
+      button:disabled { opacity: .6; cursor: wait; transform: none; }
+      .btn {
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        color: white;
+        box-shadow: 0 12px 30px rgba(79, 140, 255, .28);
+      }
+      .btn2 { background: rgba(255,255,255,.03); border-color: var(--border); color: var(--text); }
+      .btn3 { background: rgba(255, 107, 107, .08); border-color: rgba(255, 107, 107, .28); color: #ffc2c2; }
+
+      .helper-text, .muted, .small { color: var(--muted); }
+      .helper-text { font-size: 13px; line-height: 1.5; }
+      .small { font-size: 12px; }
+
+      .chips {
+        display:flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+      }
+      .chip {
+        padding: 8px 11px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(255,255,255,.03);
+        color: var(--text);
+        font-size: 12px;
+        cursor: pointer;
+        transition: background .14s ease, border-color .14s ease;
+      }
+      .chip:hover { background: rgba(79, 140, 255, .11); border-color: rgba(79, 140, 255, .34); }
+
+      .out {
+        display:flex;
+        flex-direction: column;
+        gap: 14px;
+        min-height: 220px;
+      }
+
+      .conversation {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .message {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-width: 92%;
+      }
+
+      .message.user {
+        align-self: flex-end;
+        margin-left: auto;
+      }
+
+      .message.system {
+        align-self: center;
+        max-width: 100%;
+      }
+
+      .message-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        font-weight: 800;
+        border: 1px solid var(--border);
+        background: rgba(255,255,255,.04);
+      }
+
+      .user .avatar {
+        background: rgba(79, 140, 255, .12);
+        border-color: rgba(79, 140, 255, .28);
+        color: #aecdff;
+      }
+
+      .assistant .avatar {
+        background: rgba(50, 196, 141, .12);
+        border-color: rgba(50, 196, 141, .28);
+        color: #b1f0d5;
+      }
+
+      .system .avatar {
+        background: rgba(255,255,255,.06);
+      }
+
+      .bubble {
+        border-radius: 18px;
+        border: 1px solid var(--border);
+        background: rgba(255,255,255,.025);
+        padding: 14px;
+      }
+
+      .user .bubble {
+        background: linear-gradient(180deg, rgba(79, 140, 255, .16), rgba(79, 140, 255, .08));
+        border-color: rgba(79, 140, 255, .24);
+      }
+
+      .assistant .bubble {
+        background: linear-gradient(180deg, rgba(15, 27, 47, .98), rgba(11, 21, 38, .98));
+      }
+
+      .system .bubble {
+        background: rgba(255,255,255,.02);
+      }
+
+      .message-label {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+      }
+
+      .message-meta {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .message-text {
+        font-size: 15px;
+        line-height: 1.58;
+        white-space: pre-wrap;
+      }
+
+      .message-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .answer {
+        border: 1px solid rgba(50, 196, 141, .18);
+        background: rgba(50, 196, 141, .05);
+        border-radius: 16px;
+        padding: 16px;
+      }
+      .answer h3 {
+        margin: 0 0 8px 0;
+        font-size: 12px;
+        color: #92dcbc;
+        text-transform: uppercase;
+        letter-spacing: .1em;
+      }
+      .answer .txt {
+        font-size: 15px;
+        line-height: 1.58;
+        white-space: pre-wrap;
+      }
+
+      .prompt-shell {
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 14px;
+        background: rgba(255,255,255,.02);
+      }
+
+      .run-card {
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 16px;
+        background: rgba(255,255,255,.02);
+      }
+
+      .run-card .run-index {
+        color: #8fb4ff;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+      }
+
+      details {
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 11px 13px;
+        background: rgba(255,255,255,.02);
+      }
+      details > summary {
+        cursor: pointer;
+        color: var(--muted);
+        font-weight: 700;
+        list-style: none;
+      }
+      details > summary::-webkit-details-marker { display: none; }
+
+      pre {
+        margin: 10px 0 0 0;
+        padding: 13px;
+        border-radius: 14px;
+        background: rgba(3, 7, 14, .92);
+        overflow: auto;
+        color: var(--text);
+        border: 1px solid rgba(255,255,255,.04);
+      }
+
+      .divider { height: 1px; background: var(--border); margin: 10px 0; }
+      .empty {
+        border: 1px dashed var(--border);
+        border-radius: 16px;
+        padding: 28px 18px;
+        text-align: center;
+        color: var(--muted);
+        background: rgba(255,255,255,.015);
+      }
+      .kbd {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 26px;
+        padding: 2px 7px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: rgba(255,255,255,.03);
+        font-size: 12px;
+        color: var(--text);
+      }
+      .spinner {
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        border: 2px solid rgba(255,255,255,.2);
+        border-top-color: white;
+        animation: spin .8s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
     </style>
   </head>
   <body>
     <div class="wrap">
       <div class="topbar">
         <div class="title">
-          <h1>Local Business Quote Agent — Demo UI</h1>
-          <div class="sub">Single prompt + WOW demo runner with clean output.</div>
+          <div class="eyebrow">Demo Console</div>
+          <h1>Local Business Quote Agent</h1>
+          <div class="sub">Cleaner prompts, clearer outputs, better demo flow.</div>
         </div>
-        <label class="pill">
+        <label class="pill toggle">
           <input id="showRaw" type="checkbox" />
           <b>Show raw JSON</b>
         </label>
       </div>
 
       {% if warning %}
-        <div class="card warn">
-          <div class="row" style="align-items:flex-start;">
-            <div>
-              <div style="font-weight:800;">Warning</div>
-              <div class="muted">{{ warning }}</div>
-            </div>
-          </div>
+        <div class="card warn" style="margin-bottom:18px;">
+          <div style="font-weight:800; margin-bottom:6px;">Warning</div>
+          <div class="muted">{{ warning }}</div>
         </div>
       {% endif %}
 
-      <div class="card">
-        <div class="row">
-          <div class="pill"><span>LLM routing</span> <b>{{ "ON" if llm_enabled else "OFF" }}</b></div>
-          <div class="pill"><span>Rewrite</span> <b>{{ "ON" if rewrite_enabled else "OFF" }}</b></div>
-          <div class="pill"><span>Log</span> <b>{{ log_path }}</b></div>
-          <div class="pill"><span>Demo prompts</span> <b>{{ demo_prompt_count }}</b></div>
+      <div class="hero">
+        <div class="card">
+          <h2>Test prompts and demo runs without leaving the browser.</h2>
+          <p>
+            Use the single prompt area for conversational testing, then run the built-in demo prompts
+            to show repeatable behavior and logging. The UI keeps the output structured so it's easier
+            to review routing, answers, and raw agent data.
+          </p>
+          <div class="stat-grid">
+            <div class="mini-stat">
+              <div class="k">Single prompt</div>
+              <div class="v">Interactive</div>
+            </div>
+            <div class="mini-stat">
+              <div class="k">Demo mode</div>
+              <div class="v">{{ demo_prompt_count }} prompts</div>
+            </div>
+            <div class="mini-stat">
+              <div class="k">Keyboard</div>
+              <div class="v"><span class="kbd">Ctrl</span> + <span class="kbd">Enter</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-title">
+            <h3>Environment</h3>
+          </div>
+          <div class="meta-grid">
+            <div class="pill"><span>LLM routing</span> <b>{{ "ON" if llm_enabled else "OFF" }}</b></div>
+            <div class="pill"><span>Rewrite</span> <b>{{ "ON" if rewrite_enabled else "OFF" }}</b></div>
+            <div class="pill"><span>Log path</span> <b>{{ log_path }}</b></div>
+            <div class="pill"><span>Demo prompts</span> <b>{{ demo_prompt_count }}</b></div>
+          </div>
+          <div class="divider"></div>
+          <div class="helper-text">
+            Suggested demo path: run a normal service question, then an ambiguous one, then execute the full demo set.
+          </div>
         </div>
       </div>
 
       <div class="grid">
         <div class="card">
-          <h2 style="margin:0 0 10px 0; font-size: 16px;">Single prompt</h2>
-          <textarea id="promptBox" placeholder="Type a prompt..."></textarea>
-          <div class="row" style="margin-top: 10px;">
-            <button class="btn" id="sendBtn">Send</button>
+          <div class="section-title">
+            <h2>Single prompt</h2>
+            <div class="small">Fast manual testing</div>
+          </div>
+
+          <textarea id="promptBox" placeholder="Try: I need a quote for junk removal in Cedar Rapids"></textarea>
+
+          <div class="chips" id="quickPrompts">
+            <button class="chip" type="button" data-prompt="What services do you offer?">Services</button>
+            <button class="chip" type="button" data-prompt="How much does junk removal cost?">Pricing</button>
+            <button class="chip" type="button" data-prompt="Do you remove pianos?">Item handling</button>
+            <button class="chip" type="button" data-prompt="I need a quote for junk removal in Cedar Rapids">Quote intake</button>
+            <button class="chip" type="button" data-prompt="Can you pick up paint and tires?">Policy edge case</button>
+          </div>
+
+          <div class="row" style="margin-top: 14px;">
+            <button class="btn" id="sendBtn">Send prompt</button>
             <button class="btn2" id="resetBtn">Reset session + clear logs</button>
           </div>
-          <div class="small" style="margin-top: 8px;">
-            Tip: try an unknown prompt to demonstrate LLM routing fallback (if enabled).
+
+          <div class="helper-text" style="margin-top: 10px;">
+            Press <span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> to submit. Each prompt is added to the conversation history instead of replacing the previous result.
           </div>
         </div>
 
-        <div class="card">
-          <h2 style="margin:0 0 10px 0; font-size: 16px;">Demo run</h2>
-          <div class="row">
-            <button class="btn" id="demoBtn">Run WOW_PROMPTS</button>
-            <button class="btn3" id="clearOutBtn">Clear output</button>
+        <div class="action-grid">
+          <div class="card">
+            <div class="section-title">
+              <h2>Demo run</h2>
+              <div class="small">Batch verification</div>
+            </div>
+            <div class="helper-text">
+              Runs every prompt from <code>WOW_PROMPTS</code> and summarizes the latest log activity.
+            </div>
+            <div class="row" style="margin-top: 16px;">
+              <button class="btn" id="demoBtn">Run WOW_PROMPTS</button>
+              <button class="btn3" id="clearOutBtn">Clear output</button>
+            </div>
           </div>
-          <div class="small" style="margin-top: 8px;">
-            Runs all demo prompts, then shows summary + log tail.
+
+          <div class="card">
+            <div class="section-title">
+              <h2>What to look for</h2>
+            </div>
+            <div class="helper-text">
+              Check whether the final answer is concise, whether the quote flow asks for the missing fields, and whether raw JSON stays consistent with the visible response.
+            </div>
           </div>
         </div>
       </div>
 
-      <div class="card">
-        <h2 style="margin:0 0 10px 0; font-size: 16px;">Output</h2>
+      <div class="card" style="margin-top:18px;">
+        <div class="section-title">
+          <h2>Output</h2>
+          <div class="small" id="statusText">Ready · 0 messages</div>
+        </div>
         <div id="out" class="out">
-          <div class="muted">(nothing yet)</div>
+          <div id="history" class="conversation"></div>
+          <div id="emptyState" class="empty">
+            Conversation history will appear here after you send a prompt or run the demo set.
+          </div>
         </div>
       </div>
     </div>
 
     <script>
       const out = document.getElementById("out");
+      const history = document.getElementById("history");
+      const emptyState = document.getElementById("emptyState");
       const showRaw = document.getElementById("showRaw");
       const promptBox = document.getElementById("promptBox");
+      const statusText = document.getElementById("statusText");
+      const sendBtn = document.getElementById("sendBtn");
+      const demoBtn = document.getElementById("demoBtn");
+      const resetBtn = document.getElementById("resetBtn");
+
+      let historyCount = 0;
 
       function el(tag, attrs = {}, children = []) {
         const node = document.createElement(tag);
         for (const [k, v] of Object.entries(attrs)) {
           if (k === "class") node.className = v;
           else if (k === "text") node.textContent = v;
+          else if (k === "html") node.innerHTML = v;
           else node.setAttribute(k, v);
         }
         for (const c of children) node.appendChild(c);
@@ -140,13 +570,42 @@
         return el("pre", {}, [document.createTextNode(JSON.stringify(obj, null, 2))]);
       }
 
-      function setOutNodes(nodes) {
-        out.innerHTML = "";
-        nodes.forEach((n) => out.appendChild(n));
+      function updateHistoryUI() {
+        const count = history.children.length;
+        historyCount = count;
+        emptyState.style.display = count ? "none" : "block";
+      }
+
+      function setStatus(label) {
+        statusText.textContent = `${label} · ${historyCount} message${historyCount === 1 ? "" : "s"}`;
+      }
+
+      function clearHistory(emptyText = "Conversation cleared.") {
+        history.innerHTML = "";
+        emptyState.textContent = emptyText;
+        updateHistoryUI();
+      }
+
+      function appendHistory(node) {
+        history.appendChild(node);
+        updateHistoryUI();
+        node.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+
+      function setBusy(busy, label) {
+        [sendBtn, demoBtn, resetBtn].forEach((btn) => btn.disabled = busy);
+        setStatus(label || (busy ? "Running" : "Ready"));
       }
 
       function statusCard(text) {
-        return el("div", { class: "pill" }, [el("span", { text })]);
+        return messageShell("system", "System", [
+          el("div", { class: "bubble" }, [
+            el("div", { class: "row" }, [
+              el("span", { class: "spinner" }),
+              el("b", { text })
+            ])
+          ])
+        ]);
       }
 
       async function postJson(url, body) {
@@ -160,108 +619,250 @@
         return data;
       }
 
-      function renderSingleResult(data) {
-        const nodes = [];
-
-        if (data.prompt) {
-          nodes.push(el("div", { class: "muted", text: "Prompt used" }));
-          nodes.push(el("div", { style: "white-space: pre-wrap; margin: 6px 0 10px 0;" , text: data.prompt }));
-        }
-
-        nodes.push(el("div", { class: "answer" }, [
-          el("h3", { text: "Final answer" }),
-          el("div", { class: "txt", text: data.final_answer || "" }),
-        ]));
-
-        if (data.raw) {
-          const d = el("details", {}, [
-            el("summary", { text: "Raw JSON" }),
-            codeBlock(data.raw),
-          ]);
-          nodes.push(d);
-        }
-        return nodes;
+      function promptBlock(prompt) {
+        return el("div", { class: "prompt-shell" }, [
+          el("div", { class: "small", text: "Prompt used" }),
+          el("div", { style: "white-space: pre-wrap; margin-top: 6px;", text: prompt || "" })
+        ]);
       }
 
-      function renderDemoResult(data) {
-        const nodes = [];
+      function messageShell(kind, label, children = [], meta = "") {
+        const headChildren = [
+          el("span", { class: "avatar", text: label.slice(0, 1) }),
+          el("span", { class: "message-label", text: label })
+        ];
+        if (meta) {
+          headChildren.push(el("span", { class: "message-meta", text: meta }));
+        }
 
-        if (data.summary) {
-          const s = data.summary;
-          nodes.push(el("div", { class: "row" }, [
-            el("div", { class: "pill ok" }, [el("span", { text: "llm_used_count " }), el("b", { text: String(s.llm_used_count ?? 0) })]),
-            el("div", { class: "pill ok" }, [el("span", { text: "llm_rewrite_used_count " }), el("b", { text: String(s.llm_rewrite_used_count ?? 0) })]),
-            el("div", { class: "pill" }, [el("span", { text: "total_entries " }), el("b", { text: String(s.total_entries ?? 0) })]),
+        return el("div", { class: `message ${kind}` }, [
+          el("div", { class: "message-head" }, headChildren),
+          ...children
+        ]);
+      }
+
+      function renderSingleExchange(data) {
+        const wrapper = el("div", { class: "message-stack" });
+
+        if (data.prompt) {
+          wrapper.appendChild(
+            messageShell("user", "You", [
+              el("div", { class: "bubble" }, [
+                el("div", { class: "message-text", text: data.prompt })
+              ])
+            ])
+          );
+        }
+
+        const assistantChildren = [
+          el("div", { class: "bubble" }, [
+            el("div", { class: "answer" }, [
+              el("h3", { text: "Final answer" }),
+              el("div", { class: "txt", text: data.final_answer || "" }),
+            ])
+          ])
+        ];
+
+        if (data.raw) {
+          assistantChildren[0].appendChild(el("div", { style: "height: 10px;" }));
+          assistantChildren[0].appendChild(el("details", {}, [
+            el("summary", { text: "Raw JSON" }),
+            codeBlock(data.raw),
           ]));
         }
 
+        wrapper.appendChild(messageShell("assistant", "Agent", assistantChildren));
+        return wrapper;
+      }
+
+      function renderDemoExchange(data) {
+        const wrapper = el("div", { class: "message-stack" });
+
+        wrapper.appendChild(
+          messageShell("system", "Demo", [
+            el("div", { class: "bubble" }, [
+              el("div", { class: "message-text", text: "Ran the full WOW_PROMPTS batch and appended each result below." })
+            ])
+          ], `${(data.runs || []).length} runs`)
+        );
+
+        if (data.summary) {
+          const s = data.summary;
+          wrapper.appendChild(
+            messageShell("assistant", "Demo summary", [
+              el("div", { class: "bubble" }, [
+                el("div", { class: "row" }, [
+                  el("div", { class: "pill ok" }, [el("span", { text: "LLM used" }), el("b", { text: String(s.llm_used_count ?? 0) })]),
+                  el("div", { class: "pill ok" }, [el("span", { text: "Rewrite used" }), el("b", { text: String(s.llm_rewrite_used_count ?? 0) })]),
+                  el("div", { class: "pill" }, [el("span", { text: "Total log entries" }), el("b", { text: String(s.total_entries ?? 0) })]),
+                ])
+              ])
+            ])
+          );
+        }
+
         (data.runs || []).forEach((r, idx) => {
-          const card = el("div", { class: "card" }, [
-            el("div", { class: "muted", text: `Run #${idx + 1}` }),
-            el("div", { class: "divider" }),
-            el("div", { class: "small", text: "Prompt" }),
-            el("div", { style: "white-space: pre-wrap; margin: 6px 0 10px 0;" , text: r.prompt || "" }),
-            el("div", { class: "small", text: "Final answer" }),
-            el("div", { style: "white-space: pre-wrap; margin-top: 6px;" , text: r.final_answer || "" }),
+          const bubble = el("div", { class: "bubble" }, [
+            el("div", { class: "run-card" }, [
+              el("div", { class: "run-index", text: `Run #${idx + 1}` }),
+              el("div", { class: "divider" }),
+              promptBlock(r.prompt || ""),
+              el("div", { style: "height: 10px;" }),
+              el("div", { class: "answer" }, [
+                el("h3", { text: "Final answer" }),
+                el("div", { class: "txt", text: r.final_answer || "" })
+              ])
+            ])
           ]);
 
           if (r.raw) {
-            card.appendChild(el("div", { style: "height:10px;" }));
-            card.appendChild(el("details", {}, [
+            bubble.appendChild(el("div", { style: "height:10px;" }));
+            bubble.appendChild(el("details", {}, [
               el("summary", { text: "Raw JSON" }),
               codeBlock(r.raw),
             ]));
           }
 
-          nodes.push(card);
+          wrapper.appendChild(messageShell("assistant", "Agent", [bubble], `Demo run ${idx + 1}`));
         });
 
         if (data.logs_tail) {
-          nodes.push(el("details", {}, [
-            el("summary", { text: "Logs tail (latest 10)" }),
-            codeBlock(data.logs_tail),
-          ]));
+          wrapper.appendChild(
+            messageShell("system", "Logs", [
+              el("div", { class: "bubble" }, [
+                el("details", { open: "" }, [
+                  el("summary", { text: "Logs tail (latest 10)" }),
+                  codeBlock(data.logs_tail),
+                ])
+              ])
+            ])
+          );
         }
 
-        return nodes;
+        return wrapper;
       }
 
-      document.getElementById("sendBtn").addEventListener("click", async () => {
+      async function handleSinglePrompt() {
         const prompt = promptBox.value.trim();
-        if (!prompt) return setOutNodes([el("div", { class: "pill danger" }, [el("b", { text: "Prompt is empty." })])]);
+        if (!prompt) {
+          setStatus("Prompt required");
+          return appendHistory(
+            messageShell("system", "System", [
+              el("div", { class: "bubble" }, [
+                el("div", { class: "pill danger" }, [el("b", { text: "Prompt is empty." })])
+              ])
+            ])
+          );
+        }
 
-        setOutNodes([statusCard("Running...")]);
+        const pending = statusCard("Running prompt...");
+        appendHistory(pending);
+        setBusy(true, "Sending prompt");
+
         try {
           const data = await postJson("/api/prompt", { prompt, show_raw: showRaw.checked });
-          setOutNodes(renderSingleResult(data));
+          pending.replaceWith(renderSingleExchange(data));
+          updateHistoryUI();
+          setStatus("Completed");
+          promptBox.value = "";
         } catch (e) {
-          setOutNodes([el("div", { class: "pill danger" }, [el("b", { text: String(e) })])]);
+          pending.replaceWith(
+            messageShell("system", "System", [
+              el("div", { class: "bubble" }, [
+                el("div", { class: "pill danger" }, [el("b", { text: String(e) })])
+              ])
+            ])
+          );
+          updateHistoryUI();
+          setStatus("Failed");
+        } finally {
+          setBusy(false, statusText.textContent.split(" · ")[0]);
         }
-      });
+      }
 
-      document.getElementById("demoBtn").addEventListener("click", async () => {
-        setOutNodes([statusCard("Running demo...")]);
+      async function handleDemoRun() {
+        const pending = statusCard("Running demo prompts...");
+        appendHistory(pending);
+        setBusy(true, "Running demo");
+
         try {
           const data = await postJson("/api/demo", { show_raw: showRaw.checked });
-          setOutNodes(renderDemoResult(data));
+          pending.replaceWith(renderDemoExchange(data));
+          updateHistoryUI();
+          setStatus("Demo completed");
         } catch (e) {
-          setOutNodes([el("div", { class: "pill danger" }, [el("b", { text: String(e) })])]);
+          pending.replaceWith(
+            messageShell("system", "System", [
+              el("div", { class: "bubble" }, [
+                el("div", { class: "pill danger" }, [el("b", { text: String(e) })])
+              ])
+            ])
+          );
+          updateHistoryUI();
+          setStatus("Demo failed");
+        } finally {
+          setBusy(false, statusText.textContent.split(" · ")[0]);
         }
-      });
+      }
 
-      document.getElementById("resetBtn").addEventListener("click", async () => {
-        setOutNodes([statusCard("Resetting...")]);
+      async function handleReset() {
+        const pending = statusCard("Resetting session...");
+        appendHistory(pending);
+        setBusy(true, "Resetting");
+
         try {
           const data = await postJson("/api/reset", {});
-          setOutNodes([el("div", { class: "pill ok" }, [el("b", { text: data.ok ? "Reset OK" : "Reset failed" })])]);
+          clearHistory("Conversation history was reset.");
+          appendHistory(
+            messageShell("system", "System", [
+              el("div", { class: "bubble" }, [
+                el("div", { class: data.ok ? "pill ok" : "pill danger" }, [
+                  el("b", { text: data.ok ? "Reset OK" : "Reset failed" })
+                ])
+              ])
+            ])
+          );
+          setStatus(data.ok ? "Reset complete" : "Reset failed");
         } catch (e) {
-          setOutNodes([el("div", { class: "pill danger" }, [el("b", { text: String(e) })])]);
+          pending.replaceWith(
+            messageShell("system", "System", [
+              el("div", { class: "bubble" }, [
+                el("div", { class: "pill danger" }, [el("b", { text: String(e) })])
+              ])
+            ])
+          );
+          updateHistoryUI();
+          setStatus("Reset failed");
+        } finally {
+          setBusy(false, statusText.textContent.split(" · ")[0]);
+        }
+      }
+
+      sendBtn.addEventListener("click", handleSinglePrompt);
+      demoBtn.addEventListener("click", handleDemoRun);
+      resetBtn.addEventListener("click", handleReset);
+
+      document.getElementById("clearOutBtn").addEventListener("click", () => {
+        clearHistory("Output cleared.");
+        setStatus("Cleared");
+      });
+
+      promptBox.addEventListener("keydown", (event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+          event.preventDefault();
+          handleSinglePrompt();
         }
       });
 
-      document.getElementById("clearOutBtn").addEventListener("click", () => {
-        setOutNodes([el("div", { class: "muted", text: "(cleared)" })]);
+      document.querySelectorAll("[data-prompt]").forEach((node) => {
+        node.addEventListener("click", () => {
+          promptBox.value = node.getAttribute("data-prompt") || "";
+          promptBox.focus();
+        });
       });
+
+      updateHistoryUI();
+      setStatus("Ready");
     </script>
   </body>
 </html>
